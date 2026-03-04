@@ -1,0 +1,222 @@
+﻿@page "/" 
+@using System.Runtime.InteropServices
+@rendermode InteractiveServer
+@inject NavigationManager NavigationManager
+
+<PageTitle>To-Do</PageTitle>
+<div class="w-full h-20 text-center mt-5 flex  justify-center align-middle">
+    <h2 class=" text-5xl m-auto  font-bold font-sans hover:animate-bounce after:animate-bounce focus:animate-bounce"> What are we
+        <span class="relative inline-block before:absolute before:-inset-1 before:block before:-skew-y-3 before:bg-pink-500 shadow-xl">
+            <span class="relative text-white ">doing</span>
+        </span>
+        today?</h2>
+</div>
+
+
+<div class="w-full mt-5 ">
+    <div class="w-full justify-center flex align-middle h-10">
+    @foreach (var tag in Tags)
+    {
+        <label class="bg-(--bg) mx-4 drop-shadow-2xl content-center w-100 text-center rounded-2xl duration-500 transition-transform hover:scale-110 active:scale-90" 
+               for="@tag">@tag</label>
+        <input type="button" class="btn-check"  id="@tag" @onclick="@(() => { Select(tag);})" >
+        
+    }
+    </div>
+</div>
+<EditForm Model="ToDo" FormName="formTodo" OnSubmit="@Submit" Enhance>
+<div class="w-full mt-6 text-center  ">
+    <button  class=" bg-(--bg)  h-full w-50 mx-4 drop-shadow-2xl content-center text-center rounded-2xl duration-500 transition-transform hover:scale-110 active:scale-90">
+            Make ToDo
+    </button>
+</div>
+</EditForm>
+
+
+    <ul class="flex flex-wrap-reverse  flex-col ">
+    <Virtualize Items="todos" Context="todo">
+        <li class="my-5 w-150 h-20 m-auto bg-(--bg) flex justify-between  px-2 drop-shadow-2xl  rounded-2xl ">
+            <p class="w-10 flex justify-center m-auto font-extrabold  ">@todo.Id</p>
+            
+            <p class="w-70 m-auto text-left"><InputText @bind-Value="todo.Name" class="form-control ">@todo.Name</InputText></p>
+           
+            
+            <EditForm Model="todo" FormName="@($"form-todo-{todo.IsDone}")" OnSubmit="@(() => { Finish(todo.Id);})" class="m-auto">
+            <button type="submit"  class="w-25 h-10 m-auto  bg-blue-200 rounded-3xl drop-shadow-xs drop-shadow-current duration-500 transition-transform hover:scale-110 active:scale-90">finish</button>
+            </EditForm>
+            <EditForm Model="todo" FormName="@($"form-todo-{todo.Id}")" OnSubmit="@(() => { DeleteTodo(todo.Id);})" class="m-auto ">
+            <button class="w-25 h-10 m-auto bg-red-200 drop-shadow-current rounded-3xl drop-shadow-xs duration-500 transition-transform hover:scale-110 active:scale-90" type="submit">Delete</button>
+            </EditForm>
+        </li>
+    </Virtualize>
+    </ul>
+
+
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+    
+   
+    
+    private Todo? ToDo { get; set; } = new() {IsDone = "unfinished", Name = "New Task"};
+    
+    //metoda z tagow przekazuje kontent do home
+    private List<string> Tags = TagsRepository.GetTags();
+    private List<Todo> todos = [];
+
+    private string SelectedTag = "Unfinished";
+    private string Todofilter;
+    
+    
+    protected override void OnInitialized()
+    {
+        // Wywołujemy Twoją metodę Select, przekazując domyślny tag.
+        // Dzięki temu od razu przy starcie pobieramy tylko zadania "Unfinished".
+        Select(SelectedTag);
+    }
+    
+    private void DeleteTodo(int id)
+    {
+        
+        TodoRepository.DeleteTodo(id);
+       
+        //  AKTUALIZACJA STANU: Pobieramy świeżą listę z bazy
+        // Musisz użyć tej samej logiki, co przy wyświetlaniu (np. uwzględnić miasto lub filtr)
+        if (!string.IsNullOrWhiteSpace(Todofilter))
+        {
+            todos = TodoRepository.SearchTodo(Todofilter);
+            
+        }
+         else
+        {
+            todos = TodoRepository.GetTodoByTag(SelectedTag);            
+        } 
+       
+    }
+
+    private void Select(string todotag)
+    {
+        SelectedTag = todotag;
+        todos = TodoRepository.GetTodoByTag(SelectedTag);
+    }
+
+    private void Filter(ChangeEventArgs args)
+    {
+        Todofilter = args.Value?.ToString() ?? string.Empty;
+    }
+    
+    private  void Submit()
+    {
+        if (ToDo != null) 
+        {
+            // Krok 1: Dodajemy nowe zadanie do bazy danych
+            TodoRepository.AddTodo(ToDo);
+            
+            // Krok 2: Odświeżamy naszą listę 'todos', pobierając ją z bazy 
+            // dla aktualnie wybranego tagu (żeby od razu zobaczyć dodany element)
+            todos = TodoRepository.GetTodoByTag(SelectedTag);
+            
+            // Krok 3: Czyścimy formularz, tworząc nowy, pusty obiekt
+            // Dzięki temu pole tekstowe wróci do stanu "New Task"
+            ToDo = new() { IsDone = "unfinished", Name = "New Task" };
+        }
+    }
+    
+    protected override void OnParametersSet()
+    {
+        ToDo ??=   TodoRepository.GetTodoById(Id);
+    }
+
+    private void Finish(int i)
+    {
+        if (ToDo != null)
+        {
+            TodoRepository.UpdateTodo(i, ToDo);
+            todos = TodoRepository.GetTodoByTag(SelectedTag);
+        }
+    }
+    
+}
+@*
+
+
+
+
+
+@*
+ <div class="container">
+        <EditForm Model="server" FormName="formServer" OnValidSubmit="@Submit" Enhance>
+            <DataAnnotationsValidator></DataAnnotationsValidator>
+            
+            
+            <InputNumber @bind-Value="server.Id" hidden></InputNumber>
+            <div class="row mb-3">
+                <div class="col-2">
+                    <label class="col-form-label">Name:</label>
+                </div>
+                <div class="col-6">
+                    <InputText @bind-Value="server.Name" class="form-control"></InputText>
+                </div>
+                <div class="col">
+                    <ValidationMessage For="() => server.Name"></ValidationMessage>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-2">
+                    <label class="col-form-label">City:</label>
+                </div>
+                <div class="col-6">
+                    <InputText @bind-Value="server.City" class="form-control"></InputText>
+                </div>
+                <div class="col">
+                    <ValidationMessage For="() => server.City"></ValidationMessage>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-2">
+                    <label class="col-form-label">Is online:</label>
+                </div>
+                <div class="col-6">
+                    <InputCheckbox @bind-Value="server.IsOnline" class="form-check-input"></InputCheckbox>
+                </div>
+            </div>
+         
+            <button class="btn btn-primary" type="submit">Update</button> &nbsp;
+            <a href="/servers" class="btn btn-danger">BACK</a>
+          
+          
+        </EditForm>
+    </div>
+}
+<br/>
+
+
+
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [SupplyParameterFromForm]
+    private Server? server { get; set; }
+    
+    protected override void OnParametersSet()
+    {
+      server ??=   ServersRepository.GetServerById(this.Id);
+    }
+
+    private void Submit()
+    {
+       
+        if (server != null)
+        {
+        
+            ServersRepository.UpdateServer(server.Id, server);
+           NavigationManager.NavigateTo("servers");
+        }
+    }
+    
+    
+};
+*@
